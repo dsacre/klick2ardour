@@ -3,7 +3,7 @@
 #
 # klick2ardour.py - converts a klick tempomap to an ardour session
 #
-# Copyright (C) 2008  Dominic Sacré  <dominic.sacre@gmx.de>
+# Copyright (C) 2008-2014  Dominic Sacré  <dominic.sacre@gmx.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -69,6 +69,7 @@ class ArdourTempomapWriter:
         self.tree = ET.parse(self.filename)
         self.session_node = self.tree.getroot()
 
+        self.ardour_version = int(self.session_node.attrib['version'][0])
         self.samplerate = int(self.session_node.attrib['sample-rate'])
         self.id_counter = int(self.session_node.attrib['id-counter'])
 
@@ -121,7 +122,8 @@ class ArdourTempomapWriter:
 
     def write_meter(self, bar, beats, denom):
         elem = ET.SubElement(self.tempomap_node, 'Meter')
-        elem.attrib['beats-per-bar'] = str(beats)
+        elem.attrib['beats-per-bar' if self.ardour_version == 2 else
+                    'divisions-per-bar'] = str(beats)
         elem.attrib['movable'] = 'yes' if bar != 0 else 'no'
         elem.attrib['note-type'] = str(denom)
         elem.attrib['start'] = '%d|1|0' % (bar+1)
