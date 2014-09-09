@@ -116,7 +116,7 @@ class ArdourTempomapWriter:
     def write_tempo(self, bar, beat, tempo):
         elem = ET.SubElement(self.tempomap_node, 'Tempo')
         elem.attrib['beats-per-minute'] = str(tempo)
-        elem.attrib['movable'] = 'yes' if bar != 0 and beat != 0 else 'no'
+        elem.attrib['movable'] = 'yes' if bar != 0 or beat != 0 else 'no'
         elem.attrib['note-type'] = '4'
         elem.attrib['start'] = '%d|%d|0' % (bar+1, beat+1)
 
