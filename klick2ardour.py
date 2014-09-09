@@ -102,6 +102,9 @@ class ArdourTempomapWriter:
         self.tree.write(self.filename)
 
     def write_tempomap_entry(self, state, entry):
+        if (entry.beats, entry.denom) != (state.beats, state.denom):
+            self.write_meter(state.bars, entry.beats, entry.denom)
+
         if entry.tempo != state.tempo and not entry.tempo2:
             # constant tempo
             self.write_tempo(state.bars, 0, entry.tempo)
@@ -109,9 +112,6 @@ class ArdourTempomapWriter:
             # gradual tempo change
             for x in range(entry.bars * entry.beats):
                 self.write_tempo(state.bars + x // entry.beats, x % entry.beats, self.average_tempo(entry, x))
-
-        if (entry.beats, entry.denom) != (state.beats, state.denom):
-            self.write_meter(state.bars, entry.beats, entry.denom)
 
     def write_tempo(self, bar, beat, tempo):
         elem = ET.SubElement(self.tempomap_node, 'Tempo')
