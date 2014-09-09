@@ -12,6 +12,7 @@
 #
 
 import sys
+import os.path
 import math
 import re
 import xml.etree.ElementTree as ET
@@ -73,7 +74,12 @@ class KlickTempomapReader:
 
 class ArdourTempomapWriter:
     def __init__(self, filename):
-        self.filename = filename
+        if os.path.isdir(filename):
+            norm = os.path.normpath(filename)
+            self.filename = os.path.join(norm,
+                                         os.path.split(norm)[1] + '.ardour')
+        else:
+            self.filename = filename
 
         self.tree = ET.parse(self.filename)
         self.session_node = self.tree.getroot()
