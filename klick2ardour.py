@@ -25,12 +25,13 @@ class struct:
 
 class KlickTempomapReader:
     regex = re.compile(
-        '^(\s*(?P<label>[\w-]+):)?' \
-        '\s*(?P<bars>\d+)' \
-        '(\s+(?P<beats>\d+)/(?P<denom>\d+))?' \
-        '\s+(?P<tempo>\d+(\.\d+)?)(-(?P<tempo2>\d+(\.\d+)?))?' \
-        '(\s+(?P<pattern>[Xx\.]+))?' \
-        '(\s+(?P<volume>\d+(\.d+)?))?' \
+        '^(\s*(?P<label>[\w-]+):)?'
+        '\s*(?P<bars>\d+)'
+        '(\s+(?P<beats>\d+)/(?P<denom>\d+))?'
+        '\s+(?P<tempo>\d+(\.\d+)?)(-(?P<tempo2>\d+(\.\d+)?)|'
+                                 '(?P<tempi>(,(\d+(\.\d+)?))*))?'
+        '(\s+(?P<pattern>[Xx\.]+))?'
+        '(\s+(?P<volume>\d+(\.d+)?))?'
         '\s*(#.*)?$'
     )
     regex_blank = re.compile('^\s*(#.*)?$')
@@ -39,7 +40,9 @@ class KlickTempomapReader:
         self.filename = filename
 
     def read(self):
-        tempomap = [self.parse_entry(line) for line in file(self.filename) if not self.is_blank(line)]
+        tempomap = [self.parse_entry(line)
+                    for line in file(self.filename)
+                    if not self.is_blank(line)]
         return tempomap
 
     def parse_entry(self, line):
@@ -49,14 +52,20 @@ class KlickTempomapReader:
 
         maybe = lambda x, y: x if x else y
 
-        return struct(
+        ret = struct(
             label  = maybe(m.group('label'), None),
             bars   = int(m.group('bars')),
             beats  = int(maybe(m.group('beats'), 4)),
             denom  = int(maybe(m.group('denom'), 4)),
             tempo  = float(m.group('tempo')),
-            tempo2 = float(maybe(m.group('tempo2'), 0.0))
+            tempo2 = float(maybe(m.group('tempo2'), 0.0)),
+            tempi  = None,
         )
+        if m.group('tempi'):
+            ret.tempi = ([ret.tempo] +
+                         [float(t) for t in m.group('tempi')[1:].split(',')])
+            ret.tempo = None
+        return ret
 
     def is_blank(self, line):
         return re.match(KlickTempomapReader.regex_blank, line) != None
@@ -81,7 +90,8 @@ class ArdourTempomapWriter:
         self.locations_node = self.session_node.find('Locations')
 
         # remove existing markers. can't remove while iterating...
-        for loc in [x for x in self.locations_node if x.attrib['flags'] == 'IsMark']:
+        for loc in [x for x in self.locations_node
+                                if x.attrib['flags'] == 'IsMark']:
             self.locations_node.remove(loc)
 
         state = struct(frames = 0, bars = 0, beats = 0, denom = 0, tempo = 0)
@@ -105,13 +115,21 @@ class ArdourTempomapWriter:
         if (entry.beats, entry.denom) != (state.beats, state.denom):
             self.write_meter(state.bars, entry.beats, entry.denom)
 
-        if entry.tempo != state.tempo and not entry.tempo2:
+        if entry.tempo != state.tempo and (not entry.tempo2 and
+                                           not entry.tempi):
             # constant tempo
             self.write_tempo(state.bars, 0, entry.tempo)
         elif entry.tempo2:
             # gradual tempo change
             for x in range(entry.bars * entry.beats):
-                self.write_tempo(state.bars + x // entry.beats, x % entry.beats, self.average_tempo(entry, x))
+                self.write_tempo(state.bars + x // entry.beats,
+                                 x % entry.beats,
+                                 self.average_tempo(entry, x))
+        elif entry.tempi:
+            # tempo per beat
+            for x, t in enumerate(entry.tempi):
+                self.write_tempo(state.bars + x // entry.beats,
+                                 x % entry.beats, t)
 
     def write_tempo(self, bar, beat, tempo):
         elem = ET.SubElement(self.tempomap_node, 'Tempo')
@@ -139,11 +157,15 @@ class ArdourTempomapWriter:
         self.id_counter += 1
 
     def entry_frames(self, entry):
-        if not entry.tempo2:
+        if not entry.tempo2 and not entry.tempi:
             t = entry.tempo
-        else:
-            t = (entry.tempo - entry.tempo2) / (math.log(entry.tempo) - math.log(entry.tempo2))
-        secs = entry.bars * entry.beats * 240.0 / (t * entry.denom)
+            secs = entry.bars * entry.beats * 240.0 / (t * entry.denom)
+        elif entry.tempo2:
+            t = ((entry.tempo - entry.tempo2) /
+                    (math.log(entry.tempo) - math.log(entry.tempo2)))
+            secs = entry.bars * entry.beats * 240.0 / (t * entry.denom)
+        elif entry.tempi:
+            secs = sum(240.0 / (t * entry.denom) for t in entry.tempi)
         return secs * self.samplerate
 
     def average_tempo(self, entry, beat):
