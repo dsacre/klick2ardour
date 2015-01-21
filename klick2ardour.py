@@ -42,7 +42,7 @@ class KlickTempomapReader:
 
     def read(self):
         tempomap = [self.parse_entry(line)
-                    for line in file(self.filename)
+                    for line in open(self.filename)
                     if not self.is_blank(line)]
         return tempomap
 
