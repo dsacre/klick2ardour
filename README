@@ -1,0 +1,14 @@
+klick2ardour.py - Apply klick tempo maps to Ardour sessions
+
+http://das.nasophon.de/klick/
+
+klick2ardour.py is a Python script that reads klick tempo maps and
+writes them to Ardour session files. It does not create new Ardour
+sessions, but replaces all tempo/meter changes and position markers in
+existing sessions.
+
+Usage: python klick2ardour.py <tempomap-file> <ardour-session-file>
+
+The session should not be open in Ardour while running this script. And
+don't try this on any valuable Ardour session without making a backup
+copy beforehand :) 
